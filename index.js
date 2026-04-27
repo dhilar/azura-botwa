@@ -22,25 +22,23 @@ loadDB();
 // 🔥 OWNER FIX FINAL
 function isOwner(senderJid) {
   const raw = String(senderJid || "");
-
-  // bersihin device suffix
   const cleanJid = raw.replace(/:\d+@/, "@");
-
-  // ambil nomor
   const number = cleanJid.split("@")[0].replace(/\D/g, "");
 
-  // DEBUG BIAR KETAHUAN
-  console.log("=== OWNER DEBUG ===");
-  console.log("RAW JID:", raw);
-  console.log("CLEAN JID:", cleanJid);
-  console.log("NUMBER:", number);
-  console.log("===================");
-
-  return (
+  const isMatch = (
     config.ownerJids.includes(raw) ||
     config.ownerJids.includes(cleanJid) ||
-    config.ownerNumbers.includes(number)
+    config.ownerNumbers.includes(number) ||
+    config.ownerNumbers.some(n => number.endsWith(n) || n.endsWith(number))
   );
+
+  if (isMatch) {
+    console.log("=== OWNER RECOGNIZED ===");
+    console.log("JID:", raw);
+    console.log("=========================");
+  }
+
+  return isMatch;
 }
 
 function ownerJids() {
@@ -59,6 +57,37 @@ async function startBot() {
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  // =========================
+  // GROUP PARTICIPANTS (Welcome/Goodbye)
+  // =========================
+  sock.ev.on("group-participants.update", async (anu) => {
+    const { id, participants, action } = anu;
+    const db = loadDB();
+    const group = ensureGroup(db, id);
+    const metadata = await sock.groupMetadata(id);
+
+    for (const user of participants) {
+      let text = "";
+      if (action === "add" && group.welcome.enabled) {
+        text = group.welcome.text;
+      } else if (action === "remove" && group.goodbye.enabled) {
+        text = group.goodbye.text;
+      }
+
+      if (text) {
+        text = text
+          .replace("@user", `@${user.split("@")[0]}`)
+          .replace("@group", metadata.subject)
+          .replace("@desc", metadata.desc?.toString() || "");
+        
+        await sock.sendMessage(id, {
+          text,
+          mentions: [user]
+        });
+      }
+    }
+  });
 
   // =========================
   // CONNECTION

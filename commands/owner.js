@@ -85,15 +85,54 @@ async function ownerHandler(sock, m, context) {
       const group = ensureGroup(db, from);
 
       // Check if bot is admin for moderation commands
-      const moderationCmds = ["open", "close", "kick", "mute", "unmute", "antilink", "autodelete"];
+      const moderationCmds = ["open", "close", "kick", "mute", "unmute", "antilink", "autodelete", "welcome", "goodbye", "setwelcome", "setleft"];
       if (moderationCmds.includes(cmd)) {
-        const botAdmin = await isGroupAdmin(sock, from, sock.user.id.replace(/:.*@/, "@"));
+        const botJid = sock.user.id.includes(":") ? sock.user.id.split(":")[0] + "@s.whatsapp.net" : sock.user.id.split("@")[0] + "@s.whatsapp.net";
+        const botAdmin = await isGroupAdmin(sock, from, botJid) || await isGroupAdmin(sock, from, sock.user.id);
         if (!botAdmin) return reply(sock, from, "❌ Bot harus jadi admin untuk fitur ini.", m);
       }
 
       if (cmd === "open" || cmd === "close") {
-        await sock.groupSettingUpdate(from, cmd === "open" ? "not_announcement" : "announcement");
-        return reply(sock, from, `✅ Grup berhasil di-${cmd === "open" ? "buka" : "tutup"}.`, m);
+        try {
+          await sock.groupSettingUpdate(from, cmd === "open" ? "not_announcement" : "announcement");
+          return reply(sock, from, `✅ Grup berhasil di-${cmd === "open" ? "buka" : "tutup"}.`, m);
+        } catch (e) {
+          return reply(sock, from, `❌ Gagal: ${e.message}`, m);
+        }
+      }
+
+      if (cmd === "welcome") {
+        const mode = args.list[0];
+        if (mode === "on") group.welcome.enabled = true;
+        else if (mode === "off") group.welcome.enabled = false;
+        else return reply(sock, from, "Gunakan: #welcome on/off", m);
+        saveDB();
+        return reply(sock, from, `✅ Welcome message: ${group.welcome.enabled ? "ON" : "OFF"}`, m);
+      }
+
+      if (cmd === "goodbye") {
+        const mode = args.list[0];
+        if (mode === "on") group.goodbye.enabled = true;
+        else if (mode === "off") group.goodbye.enabled = false;
+        else return reply(sock, from, "Gunakan: #goodbye on/off", m);
+        saveDB();
+        return reply(sock, from, `✅ Goodbye message: ${group.goodbye.enabled ? "ON" : "OFF"}`, m);
+      }
+
+      if (cmd === "setwelcome") {
+        const text = args.list.join(" ");
+        if (!text) return reply(sock, from, "Contoh: #setwelcome Selamat datang @user!", m);
+        group.welcome.text = text;
+        saveDB();
+        return reply(sock, from, "✅ Teks welcome diupdate.", m);
+      }
+
+      if (cmd === "setleft") {
+        const text = args.list.join(" ");
+        if (!text) return reply(sock, from, "Contoh: #setleft Selamat jalan @user!", m);
+        group.goodbye.text = text;
+        saveDB();
+        return reply(sock, from, "✅ Teks goodbye diupdate.", m);
       }
 
       if (cmd === "kick") {
@@ -175,6 +214,8 @@ async function ownerHandler(sock, m, context) {
 
 Anti-link: ${group.antilink ? "✅" : "❌"}
 Auto-delete Cmd: ${group.autodelete ? "✅" : "❌"}
+Welcome: ${group.welcome.enabled ? "✅" : "❌"}
+Goodbye: ${group.goodbye.enabled ? "✅" : "❌"}
 Muted Users: ${group.mutedUsers.length}
 Total Warnings: ${Object.keys(group.warnings).length}
 `.trim(), m);
@@ -475,6 +516,10 @@ Total Order: ${stats.total}
 #mutelist
 #antilink on/off
 #autodelete on/off
+#welcome on/off
+#setwelcome <teks>
+#goodbye on/off
+#setleft <teks>
 #groupsetting
 #hta / #tagall / #promo
 
