@@ -17,6 +17,7 @@ const {
   listProducts
 } = require("../lib/product");
 const { broadcast, canBroadcastToday } = require("../lib/broadcast");
+const os = require("os");
 const {
   reply,
   rupiah,
@@ -87,8 +88,7 @@ async function ownerHandler(sock, m, context) {
       // Check if bot is admin for moderation commands
       const moderationCmds = ["open", "close", "kick", "mute", "unmute", "antilink", "autodelete", "welcome", "goodbye", "setwelcome", "setleft"];
       if (moderationCmds.includes(cmd)) {
-        const botJid = sock.user.id.includes(":") ? sock.user.id.split(":")[0] + "@s.whatsapp.net" : sock.user.id.split("@")[0] + "@s.whatsapp.net";
-        const botAdmin = await isGroupAdmin(sock, from, botJid) || await isGroupAdmin(sock, from, sock.user.id);
+        const botAdmin = await isGroupAdmin(sock, from, sock.user.id);
         if (!botAdmin) return reply(sock, from, "❌ Bot harus jadi admin untuk fitur ini.", m);
       }
 
@@ -141,8 +141,14 @@ async function ownerHandler(sock, m, context) {
         
         // Safety check
         const metadata = await sock.groupMetadata(from);
-        const isAdminTarget = metadata.participants.find(p => p.id === target)?.admin;
-        if (isAdminTarget || target.includes(config.ownerNumber)) {
+        const cleanTarget = target.split("@")[0].split(":")[0];
+        
+        const participant = metadata.participants.find(p => {
+          const pId = p.id.split("@")[0].split(":")[0];
+          return p.id === target || pId === cleanTarget;
+        });
+
+        if (participant?.admin || config.ownerNumbers.includes(cleanTarget)) {
           return reply(sock, from, "❌ Tidak bisa kick owner/admin.", m);
         }
 
@@ -500,6 +506,37 @@ Total Order: ${stats.total}
       return reply(sock, from, `✅ Broadcast selesai!\nSukses: ${log.success}\nGagal: ${log.fail}`, m);
     }
 
+    // --- Stats & Owner Check ---
+    if (cmd === "stats") {
+      const db = loadDB();
+      const uptime = process.uptime();
+      const hours = Math.floor(uptime / 3600);
+      const minutes = Math.floor((uptime % 3600) / 60);
+      
+      const stats = `
+📊 *BOT STATISTICS*
+
+*Sistem:*
+• Uptime: ${hours}h ${minutes}m
+• Platform: ${os.platform()}
+• RAM: ${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB / ${Math.round(os.totalmem() / 1024 / 1024 / 1024)}GB
+
+*Database:*
+• Total Users: ${Object.keys(db.users).length}
+• Total Orders: ${db.orders.length}
+• Total Products: ${db.products.length}
+• Total Groups: ${Object.keys(db.groups).length}
+• Total FAQ: ${Object.keys(db.faq).length}
+`.trim();
+      return reply(sock, from, stats, m);
+    }
+
+    if (cmd === "checkowner" || cmd === "owner") {
+      const db = loadDB();
+      const list = config.ownerNumbers.map((n, i) => `${i + 1}. @${n}`).join("\n");
+      return reply(sock, from, `👑 *DAFTAR OWNER*\n\n${list}\n\nJID Kamu: ${senderJid}`, { mentions: config.ownerNumbers.map(n => n + "@s.whatsapp.net") });
+    }
+
     return reply(sock, from, `
 *COMMAND OWNER/ADMIN*
 
@@ -542,6 +579,8 @@ Total Order: ${stats.total}
 #setpayment / #setrules / #setgaransi / #setkontak
 #setqris (reply image)
 #bc / #bcbuyer message
+#stats
+#checkowner
 `.trim(), m);
 
   } catch (err) {

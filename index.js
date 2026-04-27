@@ -25,20 +25,12 @@ function isOwner(senderJid) {
   const cleanJid = raw.replace(/:\d+@/, "@");
   const number = cleanJid.split("@")[0].replace(/\D/g, "");
 
-  const isMatch = (
+  return (
     config.ownerJids.includes(raw) ||
     config.ownerJids.includes(cleanJid) ||
     config.ownerNumbers.includes(number) ||
     config.ownerNumbers.some(n => number.endsWith(n) || n.endsWith(number))
   );
-
-  if (isMatch) {
-    console.log("=== OWNER RECOGNIZED ===");
-    console.log("JID:", raw);
-    console.log("=========================");
-  }
-
-  return isMatch;
 }
 
 function ownerJids() {
@@ -62,30 +54,41 @@ async function startBot() {
   // GROUP PARTICIPANTS (Welcome/Goodbye)
   // =========================
   sock.ev.on("group-participants.update", async (anu) => {
-    const { id, participants, action } = anu;
-    const db = loadDB();
-    const group = ensureGroup(db, id);
-    const metadata = await sock.groupMetadata(id);
-
-    for (const user of participants) {
-      let text = "";
-      if (action === "add" && group.welcome.enabled) {
-        text = group.welcome.text;
-      } else if (action === "remove" && group.goodbye.enabled) {
-        text = group.goodbye.text;
+    try {
+      const { id, participants, action } = anu;
+      const db = loadDB();
+      const group = ensureGroup(db, id);
+      
+      // Get metadata, if fails bot won't crash
+      let metadata;
+      try {
+        metadata = await sock.groupMetadata(id);
+      } catch {
+        return;
       }
 
-      if (text) {
-        text = text
-          .replace("@user", `@${user.split("@")[0]}`)
-          .replace("@group", metadata.subject)
-          .replace("@desc", metadata.desc?.toString() || "");
-        
-        await sock.sendMessage(id, {
-          text,
-          mentions: [user]
-        });
+      for (const user of participants) {
+        let text = "";
+        if (action === "add" && group.welcome.enabled) {
+          text = group.welcome.text;
+        } else if (action === "remove" && group.goodbye.enabled) {
+          text = group.goodbye.text;
+        }
+
+        if (text) {
+          text = text
+            .replace("@user", `@${user.split("@")[0]}`)
+            .replace("@group", metadata.subject || "Grup")
+            .replace("@desc", metadata.desc?.toString() || "");
+          
+          await sock.sendMessage(id, {
+            text,
+            mentions: [user]
+          });
+        }
       }
+    } catch (err) {
+      console.error("EVENT PARTICIPANTS ERROR:", err);
     }
   });
 
@@ -145,7 +148,10 @@ async function startBot() {
 
     const from = m.key.remoteJid;
     const isGroup = from.endsWith("@g.us");
-    const senderJid = isGroup ? m.key.participant : from;
+    const senderJid = isGroup ? (m.key.participant || m.participant || from) : from;
+    
+    if (!senderJid) return; // safety check
+
     const senderNumber = senderJid.split("@")[0].split(":")[0];
     const pushName = m.pushName || "Customer";
 

@@ -35,40 +35,50 @@ async function userHandler(sock, m, context) {
     const products = listProducts();
 
     if (!products.length) {
-      return reply(sock, from, "📭 Produk masih kosong.", m);
+      return reply(sock, from, "📭 *MAAF, PRODUK BELUM TERSEDIA*", m);
     }
 
-    const list = products.map((p, i) => `${i + 1}. ${p.name}`).join("\n");
+    const list = products.map((p, i) => `┃ ${i + 1}. *${p.name.toUpperCase()}*`).join("\n");
 
     return reply(sock, from, `
-🛒 *MENU PRODUK*
-
+┏━━━  🛒 *MENU TOKO*  ━━━┓
+┃
 ${list}
+┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-Ketik nama produk.
+💡 *TIPS:* Ketik nama produk di atas untuk melihat detail & varian.
 Contoh: *chatgpt*
 `.trim(), m);
   }
 
   // Support Commands
   if (lower === "rules") {
-    return reply(sock, from, db.settings.rules || "Belum ada rules.", m);
+    return reply(sock, from, `📜 *PERATURAN TOKO*\n\n${db.settings.rules || "Belum ada rules."}`, m);
   }
   if (lower === "garansi") {
-    return reply(sock, from, db.settings.garansi || "Belum ada info garansi.", m);
+    return reply(sock, from, `🛡️ *INFORMASI GARANSI*\n\n${db.settings.garansi || "Belum ada info garansi."}`, m);
   }
   if (lower === "kontakadmin" || lower === "kontak") {
-    return reply(sock, from, db.settings.kontakAdmin || "Belum ada kontak admin.", m);
+    return reply(sock, from, `👨‍💻 *HUBUNGI ADMIN*\n\n${db.settings.kontakAdmin || "Belum ada kontak admin."}`, m);
   }
 
   // FAQ System
   if (lower === "faq" || lower.startsWith("faq ") || lower.startsWith("penjelasan ") || lower.startsWith("info ")) {
     const faqKeys = Object.keys(db.faq);
-    if (!faqKeys.length) return reply(sock, from, "📭 FAQ belum tersedia.", m);
+    if (!faqKeys.length) return reply(sock, from, "📭 *FAQ BELUM TERSEDIA*", m);
 
     let keyword = "";
     if (lower === "faq") {
-      return reply(sock, from, `📑 *DAFTAR INFO / FAQ*\n\n${faqKeys.map(k => `• ${k}`).join("\n")}\n\nKetik *faq <keyword>* untuk melihat penjelasan.`, m);
+      const list = faqKeys.map((k, i) => `┃ ${i + 1}. *${k.toUpperCase()}*`).join("\n");
+      return reply(sock, from, `┏━━━  📑 *PUSAT INFORMASI*  ━━━┓
+┃
+${list}
+┃
+┗━━━━━━━━━━━━━━━━━━━━┛
+
+💡 Ketik *faq <nama info>* untuk detail.
+Contoh: *faq garansi*`, m);
     } else if (lower.startsWith("faq ")) {
       keyword = lower.substring(4).trim();
     } else if (lower.startsWith("penjelasan ")) {
@@ -83,7 +93,7 @@ Contoh: *chatgpt*
       return reply(sock, from, `📑 *${match.toUpperCase()}*\n\n${db.faq[match]}`, m);
     }
 
-    return reply(sock, from, "Penjelasan belum tersedia. Ketik *faq* untuk daftar info.", m);
+    return reply(sock, from, "❌ *INFO TIDAK DITEMUKAN*\nKetik *faq* untuk daftar info.", m);
   }
 
   if (lower === "pay" || lower === "payment") {
@@ -115,52 +125,56 @@ Contoh: *chatgpt*
   if (lower === "myorder") {
     const orders = db.orders.filter(o => o.buyerJid === senderJid).slice(-5).reverse();
 
-    if (!orders.length) return reply(sock, from, "📭 Kamu belum punya order.", m);
+    if (!orders.length) return reply(sock, from, "📭 *KAMU BELUM PUNYA ORDER*", m);
 
     const out = orders.map(o =>
-      `• ${o.invoice} - ${o.variantName}\n  Status: ${o.status} | Total: ${rupiah(o.total)}`
-    ).join("\n\n");
+      `┃ 🧾 *${o.invoice}*\n┃ 📦 ${o.variantName}\n┃ 💰 ${rupiah(o.total)}\n┃ 📌 Status: *${o.status.toUpperCase()}*`
+    ).join("\n┣━━━━━━━━━━━━━━━━━━━━\n");
 
-    return reply(sock, from, `📦 *ORDER KAMU*\n\n${out}`, m);
+    return reply(sock, from, `┏━━━  📦 *RIWAYAT ORDER*  ━━━┓\n┃\n${out}\n┃\n┗━━━━━━━━━━━━━━━━━━━━┛\n\n💡 Ketik *cekorder <nomor>* untuk detail.`, m);
   }
 
   if (lower.startsWith("cekorder")) {
     const num = lower.split(/\s+/)[1];
-    if (!num) return reply(sock, from, "Contoh: cekorder 1", m);
+    if (!num) return reply(sock, from, "💡 Contoh: *cekorder 1*", m);
 
     const order = db.orders.find(o =>
       o.buyerJid === senderJid &&
       (String(o.invoiceNumber) === num || o.invoice.toLowerCase() === num.toLowerCase())
     );
 
-    if (!order) return reply(sock, from, "❌ Order tidak ditemukan.", m);
+    if (!order) return reply(sock, from, "❌ *ORDER TIDAK DITEMUKAN*", m);
 
     return reply(sock, from, `
-📦 *DETAIL ORDER ${order.invoice}*
-
-Produk: ${order.variantName}
-Total: ${rupiah(order.total)}
-Status: ${order.status}
-Note: ${order.note || "-"}
+┏━━━  📦 *DETAIL ORDER*  ━━━┓
+┃
+┃ 🧾 Invoice: *${order.invoice}*
+┃ 📦 Produk: ${order.variantName}
+┃ 💰 Total: *${rupiah(order.total)}*
+┃ 📌 Status: *${order.status.toUpperCase()}*
+┃ 📝 Note: ${order.note || "-"}
+┃ 📅 Tanggal: ${new Date(order.createdAt).toLocaleString("id-ID")}
+┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 `.trim(), m);
   }
 
   if (lower.startsWith("batal")) {
     const num = lower.split(/\s+/)[1];
-    if (!num) return reply(sock, from, "Contoh: batal 1", m);
+    if (!num) return reply(sock, from, "💡 Contoh: *batal 1*", m);
 
     const order = db.orders.find(o =>
       o.buyerJid === senderJid &&
       (String(o.invoiceNumber) === num || o.invoice.toLowerCase() === num.toLowerCase())
     );
 
-    if (!order) return reply(sock, from, "❌ Order tidak ditemukan.", m);
+    if (!order) return reply(sock, from, "❌ *ORDER TIDAK DITEMUKAN*", m);
     if (!["pending", "payment_uploaded"].includes(order.status)) {
-      return reply(sock, from, `❌ Order ${order.invoice} tidak bisa dibatalkan karena statusnya ${order.status}.`, m);
+      return reply(sock, from, `❌ Order *${order.invoice}* tidak bisa dibatalkan karena statusnya *${order.status.toUpperCase()}*.`, m);
     }
 
     cancelOrder(order, "Dibatalkan oleh pembeli");
-    return reply(sock, from, `✅ Order *${order.invoice}* berhasil dibatalkan.`, m);
+    return reply(sock, from, `✅ *SUKSES*\nOrder *${order.invoice}* berhasil dibatalkan.`, m);
   }
 
   if (hasImage) {
@@ -188,15 +202,17 @@ Note: ${order.note || "-"}
 
     if (!variant) {
       const options = session.variants.map((v, i) =>
-        `${i + 1}. ${v.name} - ${rupiah(v.price)} ${v.stock <= 0 ? '(Stok Habis)' : ''}`
-      ).join("\n");
+        `┃ ${i + 1}. *${v.name}*\n┃    💰 ${rupiah(v.price)} ${v.stock <= 0 ? '┃ ❌ *STOK HABIS*' : ''}`
+      ).join("\n┣━━━━━━━━━━━━━━━━━━━━\n");
 
       return reply(sock, from, `
-Aku belum menemukan pilihan itu.
-
-Pilih salah satu:
+┏━━━  🛍️ *PILIH VARIAN*  ━━━┓
+┃
 ${options}
+┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 
+💡 Ketik *Nomor* atau *Nama Varian*.
 Contoh: *1* atau *plus*
 `.trim(), m);
     }
@@ -240,16 +256,21 @@ Contoh: *1* atau *plus*
 
     const variants = product.variants.map((v, i) => {
       const stock = v.stock ?? 0;
-      const stockText = stock <= 0 ? "*STOK HABIS*" : stock;
-      return `${i + 1}. ${v.name}\n   Harga: ${rupiah(v.price)}\n   Stok: ${stockText}`;
-    }).join("\n\n");
+      const stockText = stock <= 0 ? "❌ *STOK HABIS*" : `✅ Tersedia (${stock})`;
+      return `┃ ${i + 1}. *${v.name}*\n┃    💰 Harga: *${rupiah(v.price)}*\n┃    📦 Stok: ${stockText}`;
+    }).join("\n┣━━━━━━━━━━━━━━━━━━━━\n");
 
     return reply(sock, from, `
-📦 *${product.name.toUpperCase()}*
-
+┏━━━  📦 *DETAIL PRODUK*  ━━━┓
+┃
+┃ 🏷️ Nama: *${product.name.toUpperCase()}*
+┃
+┣━━━━━━━━━━━━━━━━━━━━
 ${variants}
+┃
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-Ketik nomor atau nama varian.
+💡 Ketik *Nomor* atau *Nama Varian* untuk membeli.
 Contoh: *1* atau *plus*
 `.trim(), m);
   }
