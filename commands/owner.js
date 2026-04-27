@@ -1,4 +1,5 @@
 const { loadDB, saveDB } = require("../lib/db");
+const config = require("../config");
 const {
   findOrder,
   latestPendingOrderByBuyer,
@@ -159,7 +160,8 @@ async function ownerHandler(sock, m, context) {
       if (cmd === "mute") {
         const target = getMentionedOrQuotedTarget(m);
         if (!target) return reply(sock, from, "❌ Tag atau reply user yang mau di-mute.", m);
-        if (target.includes(config.ownerNumber)) return reply(sock, from, "❌ Tidak bisa mute owner.", m);
+        const cleanTarget = target.split("@")[0].split(":")[0];
+        if (config.ownerNumbers.includes(cleanTarget)) return reply(sock, from, "❌ Tidak bisa mute owner.", m);
         
         if (!group.mutedUsers.includes(target)) {
           group.mutedUsers.push(target);
@@ -190,11 +192,11 @@ async function ownerHandler(sock, m, context) {
         return reply(sock, from, `✅ Anti-link: ${group.antilink ? "ON" : "OFF"}`, m);
       }
 
-      if (cmd === "autodelete") {
+      if (cmd === "autodelete" || cmd === "setautodelete") {
         const mode = args.list[0];
         if (mode === "on") group.autodelete = true;
         else if (mode === "off") group.autodelete = false;
-        else return reply(sock, from, "Gunakan: #autodelete on/off", m);
+        else return reply(sock, from, `Gunakan: #${cmd} on/off`, m);
         saveDB();
         return reply(sock, from, `✅ Auto-delete command: ${group.autodelete ? "ON" : "OFF"}`, m);
       }

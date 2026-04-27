@@ -68,6 +68,7 @@ async function startBot() {
       }
 
       for (const user of participants) {
+        if (!user || typeof user !== "string") continue;
         let text = "";
         if (action === "add" && group.welcome.enabled) {
           text = group.welcome.text;
@@ -76,8 +77,9 @@ async function startBot() {
         }
 
         if (text) {
+          const userNumber = user.split("@")[0];
           text = text
-            .replace("@user", `@${user.split("@")[0]}`)
+            .replace("@user", `@${userNumber}`)
             .replace("@group", metadata.subject || "Grup")
             .replace("@desc", metadata.desc?.toString() || "");
           
@@ -110,6 +112,10 @@ async function startBot() {
       const reconnect = code !== DisconnectReason.loggedOut;
 
       console.log("❌ CONNECTION CLOSED:", code);
+
+      if (code === 440) {
+        console.log("⚠️ RESTART REQUIRED (440): Mengulang koneksi dalam 5 detik...");
+      }
 
       if (reconnect) {
         setTimeout(startBot, 5000);
@@ -147,10 +153,13 @@ async function startBot() {
     if (m.key.fromMe) return;
 
     const from = m.key.remoteJid;
+    if (!from) return;
+
     const isGroup = from.endsWith("@g.us");
-    const senderJid = isGroup ? (m.key.participant || m.participant || from) : from;
+    let senderJid = isGroup ? (m.key.participant || m.participant || from) : from;
     
-    if (!senderJid) return; // safety check
+    // Super safe JID parsing
+    if (!senderJid || typeof senderJid !== "string") return;
 
     const senderNumber = senderJid.split("@")[0].split(":")[0];
     const pushName = m.pushName || "Customer";
